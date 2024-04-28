@@ -1,1 +1,74 @@
 version: "3"
+
+services:
+  frontend:
+    env_file: client/.env
+    build:
+      context: client
+      dockerfile: Dockerfile
+    networks:
+      - default
+    ports:
+      - 3000:80
+
+  onlineidea:
+    restart: always
+    build: .
+    env_file: .env
+    ports:
+      - 8000:8000
+    volumes:
+      - type: volume
+        source: media
+        target: /onlineidea/media/
+      - type: volume
+        source: static
+        target: /onlineidea/static/
+    networks:
+      - default
+    command: >
+      bash -c "python3 manage.py migrate
+      && python3 manage.py collectstatic --noinput
+      && /usr/local/bin/gunicorn CodePad.wsgi:application -b :8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+  
+    rabbitmq:
+    restart: always
+    env_file: .env
+    image: rabbitmq:management
+    ports:
+      - 5672:5672
+      - 15672:15672
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  postgres:
+    restart: always
+    env_file: .env
+    image: postgres:latest
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdbdata:/var/lib/postgresql/data/
+    healthcheck:
+      test: pg_isready -d $POSTGRES_DB -p $POSTGRES_PORT -U $POSTGRES_USER
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+volumes:
+  pgdbdata:
+  media:
+  static:
+
+networks:
+  default:
+    external:
+      name: codehack
