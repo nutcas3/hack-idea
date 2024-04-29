@@ -1,6 +1,6 @@
 venv
 backup/
-
+.env
 *.pyc
 *.pyo
 *.mo
