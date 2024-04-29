@@ -38,3 +38,27 @@ class UserManager(BaseUserManager):
             raise ValueError("Superuser must have is_superuser=True.")
 
         return self._create_user(email, password, **extra_fields)
+
+class User(AbstractUser):
+    email = models.EmailField(_("email address"), unique=True)
+    is_staff = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    date_joined = models.DateTimeField(default=timezone.now)
+
+    username = models.SlugField(max_length=16, unique=True)
+    admission_no = models.CharField(max_length=16, unique=True, validators=[validate_admission_number])
+    full_name = models.CharField(max_length=32)
+    contact_no = models.CharField(max_length=10, validators=[validate_contact_number])
+    avatar = models.SmallIntegerField()
+
+    USERNAME_FIELD = "email"
+    REQUIRED_FIELDS = ["username", "admission_no", "full_name", "contact_no", "avatar"]
+
+    objects = UserManager()
+
+    def save(self, *args, **kwargs):
+        self.admission_no = self.admission_no.upper()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.username
