@@ -10,7 +10,16 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.0/ref/settings/
 """
 
+import os
+from datetime import timedelta
 from pathlib import Path
+
+
+from dotenv import load_dotenv
+
+# Load environment variable from .env
+load_dotenv()
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,13 +29,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-%!)t$oirqh9akvuxqcsz#&@!bmu1#g+a1cvt@7kcjs^(-=nsqw'
+SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
 
+ALLOWED_HOSTS = ["localhost", os.environ["SERVER_HOST"]]
+
+DOMAIN = os.environ["FRONTEND_HOST"]
+
+SITE_NAME = "onlineide"
 
 # Application definition
 
@@ -37,25 +50,66 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'account',
+    'event.apps.EventConfig',
+    'rest_framework',
+    'djoser',
+    'corsheaders',
+    'cloudinary',
+    'cloudinary_storage',
+    'drf_yasg',
 ]
 
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ]
+}
+
+DJOSER = {
+    "EMAIL": {
+        "password_reset": "account.views.PasswordResetEmail"
+    },
+    "USERNAME_RESET_CONFIRM_URL": "i/have/bad/memory/username/{uid}/{token}",
+    "PASSWORD_RESET_CONFIRM_URL": "i/have/bad/memory/password/{uid}/{token}",
+    "USERNAME_CHANGED_EMAIL_CONFIRMATION": True,
+    "PASSWORD_CHANGED_EMAIL_CONFIRMATION": True,
+    "USER_CREATE_PASSWORD_RETYPE": True,
+    "SET_PASSWORD_RETYPE": True,
+    "LOGIN_FIELD": "email",
+    "TOKEN_MODEL": None,
+}
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(weeks=4),
+    "REFRESH_TOKEN_LIFETIME": timedelta(weeks=4),
+}
+
+SWAGGER_SETTINGS = {"DOC_EXPANSION": "none", "DEEP_LINKING": True}
+
+
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    "corsheaders.middleware.CorsMiddleware",
+    "django.middleware.security.SecurityMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
 ]
 
 ROOT_URLCONF = 'onlineidea.urls'
 
+AUTH_USER_MODEL = "account.User"
+DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
+CORS_ORIGIN_ALLOW_ALL = True
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
-        'APP_DIRS': True,
+        "DIRS": [os.path.join(BASE_DIR, 'templates')],        'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.debug',
@@ -74,11 +128,16 @@ WSGI_APPLICATION = 'onlineidea.wsgi.application'
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.environ["POSTGRES_DB"],
+        "USER": os.environ["POSTGRES_USER"],
+        "PASSWORD": os.environ["POSTGRES_PASSWORD"],
+        "HOST": os.environ["POSTGRES_HOST"],
+        "PORT": int(os.environ["POSTGRES_PORT"]),
     }
 }
+
 
 
 # Password validation
@@ -105,7 +164,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'EAT'
 
 USE_I18N = True
 
@@ -115,9 +174,49 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
 
+STATIC_ROOT = os.path.join(BASE_DIR, "static")
 STATIC_URL = 'static/'
 
-# Default primary key field type
-# https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
+# If Cloudinary credentials are present in the environment
 
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+envvars = os.environ.keys()
+if (
+    "MEDIA_CLOUD_NAME" in envvars
+    and "MEDIA_API_KEY" in envvars
+    and "MEDIA_API_SECRET" in envvars
+):
+    CLOUDINARY_STORAGE = {
+        "CLOUD_NAME": os.environ["MEDIA_CLOUD_NAME"],
+        "API_KEY": os.environ["MEDIA_API_KEY"],
+        "API_SECRET": os.environ["MEDIA_API_SECRET"],
+    }
+    DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.RawMediaCloudinaryStorage"
+else:
+    MEDIA_ROOT = os.path.join(BASE_DIR, "media")
+MEDIA_URL = "/media/"
+
+#email settings
+
+EMAIL_PORT = int(os.environ["EMAIL_PORT"])
+EMAIL_USE_TLS = os.environ["EMAIL_USE_TLS"] == "True"
+EMAIL_HOST = os.environ["EMAIL_HOST"]
+EMAIL_HOST_USER = os.environ["EMAIL_HOST_USER"]
+EMAIL_HOST_PASSWORD = os.environ["EMAIL_HOST_PASSWORD"]
+DEFAULT_FROM_EMAIL = os.environ["DEFAULT_FROM_EMAIL"]
+
+
+# celery settings
+CELERY_TIMEZONE = "Africa/Nairobi"
+CELERY_TASK_ROUTES = {
+    "event.tasks.submit": {"queue": "submissions"},
+    "event.tasks.set_tc_time_limits": {"queue": "submissions"},
+}
+
+
+
+# RabbitMQ settings
+
+RABBITMQ_VHOST = os.environ["RABBITMQ_DEFAULT_VHOST"]
+RABBITMQ_USER = os.environ["RABBITMQ_DEFAULT_USER"]
+RABBITMQ_PASS = os.environ["RABBITMQ_DEFAULT_PASS"]
+RABBITMQ_HOST = os.environ["RABBITMQ_DEFAULT_HOST"]
