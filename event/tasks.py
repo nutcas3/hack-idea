@@ -212,3 +212,66 @@ def submit(
     submission.save()
     print("Submission " + str(submission.id) + ": " + verdict)
 
+@shared_task
+def set_tc_time_limits(problem_id: int):
+    problem = Problem.objects.get(id=problem_id)
+    solution = problem.cpp_solution
+    testcases = problem.testcases.all()
+
+    try:
+        client = Client(environ["JUDGE_HOST"], environ["X_Auth_Token"])
+    except Exception:
+        print("ERROR Connecting the Judge!")
+        return
+
+    for testcase in testcases:
+        try:
+            tc_inp, tc_out = testcase.get_tc_str()
+            tc_inp_size = len(tc_inp) / 1024
+            tc_out_size = len(tc_out) / 1024
+            size_limit = float(environ.get("FILE_SIZE_LIMIT_KB"))
+
+            if tc_inp_size + tc_out_size > size_limit:
+                print(
+                    "SkippingTestcase "
+                    + str(testcase.id)
+                    + ": File Size Limit Exceeded"
+                )
+                continue
+
+            single_submission = SingleSubmission(
+                source_code=solution,
+                language_id=54,
+                stdin=tc_inp,
+                expected_output=tc_out,
+                cpu_time_limit=2,
+            )
+            result = single_submission.submit(client)
+        except Exception as err:
+            print(format_exc())
+            return
+
+        wait_sec = 0.0625
+        while wait_sec < 64:
+            sleep(wait_sec)
+            result.load(client)
+            if result.status["id"] > 2:
+                break
+            wait_sec *= 2
+
+        if result.status["id"] == 3:
+            time_limit = float(result.time) + 0.2
+            testcase.std_time_limit = time_limit
+            testcase.slow_time_limit = time_limit * 2
+            testcase.slower_time_limit = time_limit * 3
+            testcase.slowest_time_limit = time_limit * 5
+            testcase.save()
+            print(
+                "Testcase: "
+                + str(testcase.id)
+                + " std_time_limit set to "
+                + str(time_limit)
+            )
+        else:
+            print("Wrong code in problem.cpp_solution")
+            return
