@@ -30,6 +30,22 @@ class Event(models.Model):
     def __str__(self):
         return self.title
 
+class Leaderboard(models.Model):
+    score = models.IntegerField(default=0)
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    event = models.ForeignKey(
+        Event, on_delete=models.CASCADE, related_name="leaderboard_of_this_event"
+    )
+
+    def __str__(self):
+        return self.user.username + " in " + self.event.title
+
+    class Meta:
+        ordering = ["-event__datetime", "-score"]
+
+
+
 class Problem(models.Model):
     slug = models.SlugField(max_length=8, unique=True)
     title = models.CharField(max_length=32)
